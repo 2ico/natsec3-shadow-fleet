@@ -1,4 +1,4 @@
-import React, { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { CircleMarker, MapContainer, Marker, Polyline, Rectangle, TileLayer, Tooltip, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -27,19 +27,17 @@ type Scene = {
 };
 type Manifest = { scenes: Scene[] };
 
-function MapTracker({ onZoom, onMouse, onCenter }: {
-  onZoom: (z: number) => void;
+function MapTracker({ onMouse, onCenter }: {
   onMouse: (latLng: [number, number] | null) => void;
   onCenter: (latLng: [number, number]) => void;
 }) {
   const map = useMapEvents({
-    zoomend: () => { onZoom(map.getZoom()); onCenter([map.getCenter().lat, map.getCenter().lng]); },
+    zoomend: () => onCenter([map.getCenter().lat, map.getCenter().lng]),
     moveend: () => onCenter([map.getCenter().lat, map.getCenter().lng]),
     mousemove: (e) => onMouse([e.latlng.lat, e.latlng.lng]),
     mouseout: () => onMouse(null),
   });
   useEffect(() => {
-    onZoom(map.getZoom());
     onCenter([map.getCenter().lat, map.getCenter().lng]);
   }, [map]);
   return null;
@@ -90,20 +88,9 @@ function Kv({ k, v, colour }: { k: string; v: string; colour?: string }) {
   );
 }
 
-// Web Mercator lat/lon → XYZ tile coords. Used to display the tile under the
-// mouse / center for debugging the local pyramid.
-function lonLatToTile(lon: number, lat: number, z: number): [number, number] {
-  const n = Math.pow(2, z);
-  const x = Math.floor(((lon + 180) / 360) * n);
-  const latRad = (lat * Math.PI) / 180;
-  const y = Math.floor(((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n);
-  return [x, y];
-}
-
 export default function SatelliteTimeMap() {
   const [manifest, setManifest] = useState<Manifest | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [zoomLevel, setZoomLevel] = useState<number>(ZOOM);
   const [mouseLatLng, setMouseLatLng] = useState<[number, number] | null>(null);
   const [centerLatLng, setCenterLatLng] = useState<[number, number]>(CENTER);
   const [sceneIdx, setSceneIdx] = useState(0);
@@ -262,33 +249,47 @@ export default function SatelliteTimeMap() {
   }, [scene?.id]);
 
   return (
-    <div style={{ background: THEME.bg, color: THEME.text, fontFamily: THEME.fontSans, border: `1px solid ${THEME.border}`, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+    <div style={{ background: THEME.surface, color: THEME.text, fontFamily: THEME.fontMono, border: `1px solid ${THEME.border}`, borderRadius: 8, overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: THEME.shadow }}>
       <style>{`
-        .leaflet-container { font-family: ${THEME.fontSans}; background: #2a2a2a; }
-        .leaflet-control-zoom a { background: ${THEME.surface} !important; color: ${THEME.text} !important; border: 1px solid ${THEME.border} !important; display: flex !important; align-items: center !important; justify-content: center !important; line-height: 1 !important; font-family: ${THEME.fontMono} !important; font-size: 16px !important; }
+        .leaflet-container { font-family: ${THEME.fontMono}; background: #2a2a2a; }
+        .leaflet-control-zoom { display: none !important; }
+        .leaflet-control-zoom a { background: ${THEME.surface} !important; color: ${THEME.text} !important; border: 0 !important; display: flex !important; align-items: center !important; justify-content: center !important; line-height: 1 !important; font-family: ${THEME.fontMono} !important; font-size: 16px !important; }
+        .leaflet-control-zoom a + a { border-top: 1px solid ${THEME.border} !important; }
         .leaflet-control-attribution { background: ${THEME.surface}dd !important; color: ${THEME.textMuted} !important; font-size: 9px !important; }
         .basemap-landwhite-seadark { filter: grayscale(1) brightness(0.56) contrast(10.6); }
         .toggle-btn { border: none !important; outline: none !important; box-shadow: none !important; }
         .toggle-btn:focus, .toggle-btn:focus-visible, .toggle-btn:active { border: none !important; outline: none !important; box-shadow: none !important; }
       `}</style>
 
-      <div style={{ padding: "10px 14px", background: THEME.bgGrid, borderBottom: `1px solid ${THEME.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 8, height: 8, background: THEME.amber, boxShadow: `0 0 8px ${THEME.amber}` }} />
+      <div style={{ padding: "14px 16px", background: THEME.surfaceElevated, borderBottom: `1px solid ${THEME.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+          <div style={{ width: 10, height: 10, borderRadius: 999, background: scene ? THEME.green : THEME.amber, boxShadow: `0 0 16px ${scene ? THEME.green : THEME.amber}` }} />
           <div>
-            <div style={{ fontSize: 9, color: THEME.textMuted, letterSpacing: 2, fontWeight: 700 }}>SENTINEL-1 GRD · VV · LOCAL TILE PYRAMID</div>
-            <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: 0.3, marginTop: 2 }}>
-              SKAGEN TSS, DENMARK <span style={{ color: THEME.textMuted, fontWeight: 400 }}>/ {scene?.datetime ? new Date(scene.datetime).toISOString().replace("T", " ").slice(0, 19) + "Z" : "—"}</span>
+            <div style={{ fontSize: 10, color: THEME.textMuted, fontWeight: 700, letterSpacing: 1.4, fontFamily: THEME.fontMono, textTransform: "uppercase" }}>Scene</div>
+            <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: 0.7, marginTop: 2, fontFamily: THEME.fontMono, textTransform: "uppercase" }}>
+              Skagen TSS, Denmark
             </div>
           </div>
         </div>
-        <div style={{ fontFamily: THEME.fontMono, fontSize: 10, color: THEME.textSecondary, letterSpacing: 1 }}>
-          {scene ? `${scene.platform} · ${scene.mode} · ${scene.orbit} · z${scene.zoomMin}-${scene.zoomMax}` : error ? `ERROR · ${error}` : "LOADING…"}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "flex-end", fontFamily: THEME.fontMono }}>
+          <div style={{
+            padding: "8px 11px",
+            background: THEME.surface,
+            border: `1px solid ${THEME.border}`,
+            borderRadius: 7,
+            color: THEME.text,
+            fontSize: 12,
+            letterSpacing: 0.6,
+            fontVariantNumeric: "tabular-nums",
+          }}>
+            {scene?.datetime ? new Date(scene.datetime).toISOString().replace("T", " ").slice(0, 16) + "Z" : "Loading scene"}
+          </div>
+          {error && <span style={{ color: THEME.red, fontSize: 12 }}>{error}</span>}
         </div>
       </div>
 
       <div style={{ position: "relative", height: 540 }}>
-        <MapContainer ref={mapRef} center={CENTER} zoom={ZOOM} minZoom={6} maxZoom={18} preferCanvas style={{ width: "100%", height: "100%", background: "#0a0a0a" }} scrollWheelZoom>
+        <MapContainer ref={mapRef} center={CENTER} zoom={ZOOM} minZoom={6} maxZoom={18} zoomControl={false} preferCanvas style={{ width: "100%", height: "100%", background: "#0a0a0a" }} scrollWheelZoom>
           <TileLayer
             url="https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png"
             attribution='&copy; <a href="https://carto.com/attributions">CARTO</a> &copy; OpenStreetMap contributors'
@@ -311,8 +312,8 @@ export default function SatelliteTimeMap() {
           )}
           {aisVisible && deferredPings.map((p, i) => {
             const age = p.ageSec ?? 0;
-            // green ≤10 min, cyan ≤1 h, amber ≤6 h, dim grey beyond
-            const color = age <= 600 ? THEME.green : age <= 3600 ? THEME.cyan : age <= 21600 ? THEME.amber : THEME.textDim;
+            // green ≤10 min, darker green ≤1 h, amber ≤6 h, dim grey beyond
+            const color = age <= 600 ? THEME.green : age <= 3600 ? THEME.greenDark : age <= 21600 ? THEME.amber : THEME.textDim;
             const opacity = age <= 600 ? 0.95 : age <= 3600 ? 0.85 : age <= 21600 ? 0.7 : 0.45;
             const ageLabel = age < 60 ? `${age}s` : age < 3600 ? `${Math.round(age/60)}m` : `${Math.floor(age/3600)}h${String(Math.round((age%3600)/60)).padStart(2,"0")}m`;
             // Non-commercial classes (passenger, pleasure, fishing) shown at half
@@ -376,36 +377,71 @@ export default function SatelliteTimeMap() {
               positions={[[m.detLat, m.detLon], [m.aisLat, m.aisLon]]}
               pathOptions={{ color: "#ffffff", weight: 1, opacity: 0.8 }} />
           ))}
-          <MapTracker onZoom={setZoomLevel} onMouse={setMouseLatLng} onCenter={setCenterLatLng} />
+          <MapTracker onMouse={setMouseLatLng} onCenter={setCenterLatLng} />
         </MapContainer>
 
         {scene && (
           <div style={{
             position: "absolute", top: 12, right: 12, zIndex: 1000,
-            background: `${THEME.surface}ee`, border: `1px solid ${THEME.border}`,
-            fontFamily: THEME.fontMono, fontSize: 10, color: THEME.textSecondary,
-            letterSpacing: 1, minWidth: 200, maxWidth: 260,
+            background: `${THEME.surface}f2`, border: `1px solid ${THEME.border}`,
+            fontSize: 11, color: THEME.textSecondary,
+            width: 238, borderRadius: 8, overflow: "hidden",
+            boxShadow: THEME.shadow,
           }}>
             <button
               onClick={() => setShadowOpen((v) => !v)}
               style={{
-                width: "100%", padding: "8px 10px", display: "flex",
-                alignItems: "center", justifyContent: "space-between", gap: 8,
-                background: "transparent", border: 0, color: "inherit",
-                fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit",
-                cursor: unmatchedDet.size ? "pointer" : "default", textAlign: "left",
+                width: "100%", padding: "11px 12px", display: "flex",
+                alignItems: "center", justifyContent: "space-between", gap: 12,
+                background: shadowOpen ? THEME.surfaceElevated : "transparent", border: 0, color: "inherit",
+                fontFamily: "inherit", fontSize: "inherit",
+                cursor: "pointer", textAlign: "left",
               }}
-              disabled={unmatchedDet.size === 0}
+              aria-expanded={shadowOpen}
             >
-              <div>
-                <div style={{ fontSize: 8, color: THEME.textMuted, letterSpacing: 1.5 }}>SHADOW VESSELS</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: unmatchedDet.size ? THEME.red : THEME.text, marginTop: 2, letterSpacing: 0.5 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 11, minWidth: 0 }}>
+                <div style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 7,
+                  border: `1px solid ${unmatchedDet.size ? THEME.red : THEME.borderBright}`,
+                  background: unmatchedDet.size ? `${THEME.red}18` : THEME.surface,
+                  color: unmatchedDet.size ? THEME.redBright : THEME.textMuted,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 20,
+                  fontWeight: 850,
+                  fontFamily: THEME.fontMono,
+                  fontVariantNumeric: "tabular-nums",
+                  lineHeight: 1,
+                }}>
                   {unmatchedDet.size}
                 </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 11, color: THEME.text, fontWeight: 800, letterSpacing: 0.9, textTransform: "uppercase", fontFamily: THEME.fontMono }}>Dark candidates</div>
+                  <div style={{ marginTop: 3, fontSize: 10, color: unmatchedDet.size ? THEME.redBright : THEME.textMuted, fontFamily: THEME.fontMono, letterSpacing: 0.5 }}>
+                    {unmatchedDet.size ? "Highly suspicious vessel" : "No unmatched SAR returns"}
+                  </div>
+                </div>
               </div>
-              {unmatchedDet.size > 0 && (
-                <span style={{ color: THEME.textMuted, fontSize: 12, transform: shadowOpen ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}>▸</span>
-              )}
+              <span style={{
+                width: 24,
+                height: 24,
+                borderRadius: 6,
+                border: `1px solid ${THEME.border}`,
+                color: THEME.textMuted,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transform: shadowOpen ? "rotate(180deg)" : "none",
+                transition: "transform 0.15s",
+                flex: "0 0 auto",
+              }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </span>
             </button>
             {shadowOpen && unmatchedDet.size > 0 && (
               <div style={{ borderTop: `1px solid ${THEME.border}`, maxHeight: 280, overflowY: "auto" }}>
@@ -422,16 +458,16 @@ export default function SatelliteTimeMap() {
                         m.setView([d.centerLat, d.centerLon], z);
                       }}
                       style={{
-                        width: "100%", padding: "6px 10px", display: "flex",
+                        width: "100%", padding: "9px 12px", display: "flex",
                         justifyContent: "space-between", alignItems: "center", gap: 8,
-                        background: "transparent", border: 0, borderTop: `1px solid ${THEME.border}33`,
-                        color: THEME.text, fontFamily: "inherit", fontSize: 10, letterSpacing: 0.5,
+                        background: "transparent", border: 0, borderTop: `1px solid ${THEME.borderSoft}`,
+                        color: THEME.text, fontFamily: THEME.fontMono, fontSize: 11, letterSpacing: 0.3,
                         cursor: "pointer", textAlign: "left",
                       }}
                       onMouseEnter={(e) => (e.currentTarget.style.background = `${THEME.red}22`)}
                       onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                     >
-                      <span style={{ color: THEME.red, fontWeight: 700 }}>#{i + 1}</span>
+                      <span style={{ color: THEME.redBright, fontWeight: 800 }}>#{i + 1}</span>
                       <span style={{ flex: 1, color: THEME.text, fontVariantNumeric: "tabular-nums", marginLeft: 8 }}>
                         {d.centerLat.toFixed(4)}, {d.centerLon.toFixed(4)}
                       </span>
@@ -444,23 +480,23 @@ export default function SatelliteTimeMap() {
         )}
 
         <div style={{
-          position: "absolute", top: 10, left: 54, zIndex: 1000,
-          display: "flex", flexDirection: "column",
-          background: `${THEME.surface}ee`, border: `1px solid ${THEME.border}`,
-          fontFamily: THEME.fontMono, fontSize: 9, color: THEME.textSecondary,
-          letterSpacing: 1,
+          position: "absolute", top: 12, left: 12, zIndex: 1000,
+          display: "flex", flexDirection: "column", gap: 2,
+          background: `${THEME.surface}f2`, border: `1px solid ${THEME.border}`,
+          fontSize: 11, color: THEME.textSecondary, fontFamily: THEME.fontMono, letterSpacing: 0.8,
+          borderRadius: 8, padding: 3, boxShadow: THEME.shadow,
         }}>
           <button onClick={() => setAisVisible((v) => !v)}
             title={aisVisible ? "hide AIS overlay" : "show AIS overlay"}
             className="toggle-btn"
             style={{
-              display: "flex", alignItems: "center", gap: 4, padding: "0 8px 0 0",
-              height: 22, background: "transparent",
+              display: "flex", alignItems: "center", gap: 6, padding: "0 9px 0 0",
+              height: 28, background: aisVisible ? THEME.surfaceElevated : "transparent",
               color: aisVisible ? THEME.text : THEME.textMuted,
               border: 0, outline: "none", margin: 0, boxShadow: "none", cursor: "pointer",
-              fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit",
+              borderRadius: 6, fontFamily: "inherit", fontSize: "inherit",
             }}>
-            <span style={{ width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <span style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>
               {aisVisible ? (
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
@@ -473,20 +509,20 @@ export default function SatelliteTimeMap() {
                 </svg>
               )}
             </span>
-            toggle AIS data
+            AIS
           </button>
 
           <button onClick={() => setDetectionsVisible((v) => !v)}
             title={detectionsVisible ? "hide YOLO detections" : "show YOLO detections"}
             className="toggle-btn"
             style={{
-              display: "flex", alignItems: "center", gap: 4, padding: "0 8px 0 0",
-              height: 22, background: "transparent",
+              display: "flex", alignItems: "center", gap: 6, padding: "0 9px 0 0",
+              height: 28, background: detectionsVisible ? THEME.surfaceElevated : "transparent",
               color: detectionsVisible ? THEME.text : THEME.textMuted,
               border: 0, outline: "none", margin: 0, boxShadow: "none", cursor: "pointer",
-              fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit",
+              borderRadius: 6, fontFamily: "inherit", fontSize: "inherit",
             }}>
-            <span style={{ width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <span style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>
               {detectionsVisible ? (
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
@@ -499,17 +535,17 @@ export default function SatelliteTimeMap() {
                 </svg>
               )}
             </span>
-            toggle SAR bboxes
+            SAR
           </button>
         </div>
 
         <div style={{
           position: "absolute", bottom: 12, left: 12, zIndex: 1000,
           display: "flex", alignItems: "center", gap: 8,
-          padding: "6px 10px", background: `${THEME.surface}ee`,
-          border: `1px solid ${THEME.border}`,
-          fontFamily: THEME.fontMono, fontSize: 11, color: THEME.text,
-          letterSpacing: 0.5, fontVariantNumeric: "tabular-nums",
+          padding: "7px 10px", background: `${THEME.surface}e8`,
+          border: `1px solid ${THEME.border}`, borderRadius: 8,
+          fontFamily: THEME.fontMono, fontSize: 11, color: THEME.textMuted,
+          fontVariantNumeric: "tabular-nums", boxShadow: THEME.shadow,
         }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: THEME.textSecondary }}>
             <circle cx="12" cy="12" r="9" />
@@ -527,68 +563,6 @@ export default function SatelliteTimeMap() {
 
       </div>
 
-      {scenes.length > 0 && (
-        <div style={{ padding: "10px 14px", background: THEME.bgGrid, borderTop: `1px solid ${THEME.border}` }}>
-          <div style={{ fontSize: 9, color: THEME.textMuted, letterSpacing: 2, fontWeight: 700, marginBottom: 8 }}>TIME AXIS · {scenes.length} ACQUISITION{scenes.length === 1 ? "" : "S"}</div>
-          <div style={{ position: "relative", display: "flex", alignItems: "stretch", gap: 0, border: `1px solid ${THEME.border}` }}>
-            {scenes.map((s, i) => {
-              const active = i === sceneIdx;
-              return (
-                <button key={s.id} onClick={() => startTransition(() => setSceneIdx(i))}
-                  style={{
-                    flex: 1, padding: "8px 6px", background: active ? THEME.amber : "transparent",
-                    color: active ? THEME.bg : THEME.text,
-                    border: 0, borderRight: i < scenes.length - 1 ? `1px solid ${THEME.border}` : 0,
-                    fontFamily: THEME.fontMono, fontSize: 10, letterSpacing: 1, cursor: "pointer",
-                    display: "flex", flexDirection: "column", gap: 2, alignItems: "center",
-                  }}>
-                  <span style={{ fontWeight: 700 }}>{s.date}</span>
-                  <span style={{ fontSize: 9, opacity: 0.7 }}>{new Date(s.datetime).toISOString().slice(11, 16)}Z · {s.orbit?.slice(0, 3).toUpperCase()}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      <div style={{ padding: "6px 14px", background: THEME.bgGrid, borderTop: `1px solid ${THEME.border}`, fontSize: 9, color: THEME.textMuted, letterSpacing: 1, display: "flex", justifyContent: "space-between", fontFamily: THEME.fontMono }}>
-        <span>S1 GRD · VV · dB · LOCAL XYZ PYRAMID · YOLO {matchCount}/{detections.length} matched ({unmatchedDet.size} dark)</span>
-        <span>
-          AIS · {aisStatus === "ok" ? `${aisPings.length} pings (DMA)` :
-            aisStatus === "loading" ? "fetching…" :
-            aisStatus === "error" ? `error: ${aisError ?? ""}` : "—"}
-        </span>
-      </div>
-
-      {scene && (() => {
-        const probe = mouseLatLng ?? centerLatLng;
-        const label = mouseLatLng ? "MOUSE" : "CENTER";
-        const z = Math.min(Math.max(zoomLevel, scene.zoomMin), scene.zoomMax);
-        const [tx, ty] = lonLatToTile(probe[1], probe[0], z);
-        const tileUrl = scene.tileUrl.replace("{z}", String(z)).replace("{x}", String(tx)).replace("{y}", String(ty));
-        const Cell = ({ k, v, colour }: { k: string; v: React.ReactNode; colour?: string }) => (
-          <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-            <span style={{ fontSize: 8, color: THEME.textMuted, letterSpacing: 1.5 }}>{k}</span>
-            <span style={{ color: colour ?? THEME.text, fontSize: 10, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{v}</span>
-          </div>
-        );
-        return (
-          <div style={{ padding: "8px 14px", background: THEME.bgGrid, borderTop: `1px solid ${THEME.border}`, fontFamily: THEME.fontMono, letterSpacing: 1 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "8px 16px" }}>
-              <Cell k="ITEM" v={`${scene.id.slice(0, 16)}…`} />
-              <Cell k="TIME" v={`${new Date(scene.datetime).toISOString().slice(11, 19)}Z`} />
-              <Cell k="ORBIT" v={scene.orbit} />
-              <Cell k="POL" v={scene.polarization} />
-              <Cell k="RESCALE" v={`${scene.rescaleDb[0]}…${scene.rescaleDb[1]} dB`} />
-              <Cell k="ZOOMS" v={`${scene.zoomMin}-${scene.zoomMax}`} />
-              <Cell k="CURRENT Z" v={`z${zoomLevel}${zoomLevel > scene.zoomMax ? " (upscaled)" : ""}`} colour={zoomLevel > scene.zoomMax ? THEME.amber : THEME.text} />
-              <Cell k={label} v={`${probe[0].toFixed(4)}, ${probe[1].toFixed(4)}`} />
-              <Cell k={`TILE @ z${z}`} v={`${tx}/${ty}`} />
-            </div>
-            <div style={{ marginTop: 6, fontSize: 9, color: THEME.textMuted, wordBreak: "break-all" }}>{tileUrl}</div>
-          </div>
-        );
-      })()}
     </div>
   );
 }
