@@ -2,6 +2,8 @@
 
 Multi-INT fusion maritime webapp. Combines Sentinel-1 SAR ship detections (YOLO) with AIS vessel positions to surface dark / unreporting vessels.
 
+📹 **Demo video:** https://www.loom.com/share/260e85692c2941339a15bf59b520fada
+
 ![Shadow Fleet Detector — candidate dark vessels flagged red](docs/screenshot.jpg)
 *Anomaly view: SAR detections with no matching AIS ping are flagged red — candidate dark vessels.*
 
