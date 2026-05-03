@@ -13,8 +13,7 @@ app.use(express.json({ limit: "1mb" }));
 
 // Local AIS lookup backed by Danish DMA daily parquet files. For the given
 // scene timestamp, returns the latest known position per MMSI at or before T,
-// inside the (buffered) bbox. Falls back to GFW (next route) if no parquet
-// covers the date.
+// inside the (buffered) bbox.
 const AIS_DIR = path.resolve(process.cwd(), "s1-pipeline/data/ais");
 let _duckdbInstance: duckdb.Database | null = null;
 function db() {
@@ -113,106 +112,6 @@ app.get("/api/ais-local", async (req, res) => {
       bufferKm,
       source: `local · ${path.basename(parquetPath)}`,
       pings,
-    });
-  } catch (e: any) {
-    res.status(500).json({ error: e?.message ?? "failed" });
-  }
-});
-
-// AIS overlay for a Sentinel-1 acquisition. Asks Global Fishing Watch's
-// 4Wings/vessels API for AIS pings within a buffer of the bbox during the
-// time window [scene.datetime − 1h, scene.datetime + 10min].
-//
-// Query params:
-//   datetime    ISO timestamp of the scene (required)
-//   bbox        "minLon,minLat,maxLon,maxLat" — extended by ~50 km (required)
-//   bufferKm    default 50
-app.get("/api/ais", async (req, res) => {
-  const token = process.env.GFW_TOKEN;
-  if (!token) {
-    return res.status(503).json({ error: "GFW_TOKEN not set in .env (register at https://globalfishingwatch.org/our-apis)" });
-  }
-  try {
-    const datetimeStr = String(req.query.datetime ?? "");
-    const bboxStr = String(req.query.bbox ?? "");
-    const bufferKm = Number(req.query.bufferKm ?? 50);
-    if (!datetimeStr || !bboxStr) {
-      return res.status(400).json({ error: "datetime and bbox required" });
-    }
-    const dt = new Date(datetimeStr);
-    if (isNaN(dt.getTime())) return res.status(400).json({ error: "bad datetime" });
-    const start = new Date(dt.getTime() - 60 * 60 * 1000).toISOString();
-    const end = new Date(dt.getTime() + 10 * 60 * 1000).toISOString();
-    const [minLon, minLat, maxLon, maxLat] = bboxStr.split(",").map(Number);
-    // expand bbox by ~bufferKm (1 deg lat ≈ 111 km; lon scaled by cos(lat))
-    const dLat = bufferKm / 111;
-    const midLat = (minLat + maxLat) / 2;
-    const dLon = bufferKm / (111 * Math.cos((midLat * Math.PI) / 180));
-    const expanded = [minLon - dLon, minLat - dLat, maxLon + dLon, maxLat + dLat];
-
-    const headers = { Authorization: `Bearer ${token}` };
-
-    const reportUrl = new URL("https://gateway.api.globalfishingwatch.org/v3/4wings/report");
-    reportUrl.searchParams.set("spatial-resolution", "HIGH");
-    reportUrl.searchParams.set("temporal-resolution", "HOURLY");
-    reportUrl.searchParams.set("datasets[0]", "public-global-presence:latest");
-    const dayBefore = new Date(dt.getTime() - 26 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    const dayAfter = new Date(dt.getTime() + 26 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    reportUrl.searchParams.set("date-range", `${dayBefore},${dayAfter}`);
-    reportUrl.searchParams.set("format", "JSON");
-    reportUrl.searchParams.set("group-by", "VESSEL_ID");
-
-    const geojson = {
-      type: "Feature",
-      properties: {},
-      geometry: {
-        type: "Polygon",
-        coordinates: [[
-          [expanded[0], expanded[1]], [expanded[2], expanded[1]],
-          [expanded[2], expanded[3]], [expanded[0], expanded[3]],
-          [expanded[0], expanded[1]],
-        ]],
-      },
-    };
-
-    const r = await fetch(reportUrl, {
-      method: "POST",
-      headers: { ...headers, "Content-Type": "application/json" },
-      body: JSON.stringify({ geojson }),
-    });
-    const text = await r.text();
-    if (!r.ok) {
-      return res.status(r.status).json({ error: "gfw failed", detail: text.slice(0, 500), url: reportUrl.toString() });
-    }
-    let data: any;
-    try { data = JSON.parse(text); } catch { data = { raw: text.slice(0, 1000) }; }
-
-    const startMs = new Date(start).getTime();
-    const endMs = new Date(end).getTime();
-    const flat: any[] = [];
-    for (const entry of (data?.entries ?? [])) {
-      for (const datasetKey of Object.keys(entry)) {
-        const arr = entry[datasetKey];
-        if (!Array.isArray(arr)) continue;
-        for (const v of arr) {
-          const binStart = v.date ? new Date(v.date.replace(" ", "T") + "Z").getTime() : NaN;
-          const binEnd = isFinite(binStart) ? binStart + 60 * 60 * 1000 : NaN;
-          if (!isFinite(binStart) || binEnd < startMs || binStart > endMs) continue;
-          flat.push({
-            mmsi: v.mmsi, imo: v.imo, name: v.shipName, callsign: v.callsign,
-            flag: v.flag, type: v.vesselType, gear: v.geartype,
-            lat: v.lat, lon: v.lon, time: v.date, hours: v.hours,
-          });
-        }
-      }
-    }
-    res.json({
-      sceneTime: dt.toISOString(),
-      window: { start, end },
-      bbox: expanded,
-      bufferKm,
-      pings: flat,
-      raw: { total: data?.total, entriesCount: data?.entries?.length ?? 0 },
     });
   } catch (e: any) {
     res.status(500).json({ error: e?.message ?? "failed" });

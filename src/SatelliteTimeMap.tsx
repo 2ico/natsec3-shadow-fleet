@@ -114,7 +114,7 @@ export default function SatelliteTimeMap() {
     ageSec?: number; sog?: number; cog?: number; heading?: number;
     length?: number | null; width?: number | null; destination?: string;
   }>>([]);
-  const [aisStatus, setAisStatus] = useState<"idle" | "loading" | "ok" | "error" | "missing-token">("idle");
+  const [aisStatus, setAisStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [aisError, setAisError] = useState<string | null>(null);
   const [aisVisible, setAisVisible] = useState(true);
   const [detections, setDetections] = useState<Array<{ lat0: number; lon0: number; lat1: number; lon1: number; centerLat: number; centerLon: number; conf: number }>>([]);
@@ -554,9 +554,8 @@ export default function SatelliteTimeMap() {
       <div style={{ padding: "6px 14px", background: THEME.bgGrid, borderTop: `1px solid ${THEME.border}`, fontSize: 9, color: THEME.textMuted, letterSpacing: 1, display: "flex", justifyContent: "space-between", fontFamily: THEME.fontMono }}>
         <span>S1 GRD · VV · dB · LOCAL XYZ PYRAMID · YOLO {matchCount}/{detections.length} matched ({unmatchedDet.size} dark)</span>
         <span>
-          AIS · {aisStatus === "ok" ? `${aisPings.length} pings (GFW)` :
+          AIS · {aisStatus === "ok" ? `${aisPings.length} pings (DMA)` :
             aisStatus === "loading" ? "fetching…" :
-            aisStatus === "missing-token" ? "set GFW_TOKEN" :
             aisStatus === "error" ? `error: ${aisError ?? ""}` : "—"}
         </span>
       </div>

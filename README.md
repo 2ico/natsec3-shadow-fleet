@@ -28,7 +28,6 @@ The frontend (React + Leaflet) lets the operator scrub through dates, see SAR + 
 ## Setup
 
 ```bash
-cp .env.example .env   # add GFW_TOKEN if using /api/ais
 pnpm install
 pnpm dev
 ```
@@ -45,13 +44,11 @@ pnpm start   # serves API + dist on PORT (default 3000)
 ## API
 
 - `GET /api/ais-local?datetime=…&bbox=minLon,minLat,maxLon,maxLat` — latest-per-MMSI AIS pings from local DMA parquet files.
-- `GET /api/ais?datetime=…&bbox=…` — Global Fishing Watch 4Wings vessel-presence report (requires `GFW_TOKEN`).
 
 ## Data & model credits
 
 - **Sentinel-1 GRD** — ESA Copernicus, served via [Microsoft Planetary Computer](https://planetarycomputer.microsoft.com/) (free, open data).
 - **AIS vessel tracks** — [Danish Maritime Authority](https://web.ais.dk/aisdata/) daily DMA dumps (CC BY 4.0).
-- **Global Fishing Watch 4Wings** — vessel-presence reports via [GFW API](https://globalfishingwatch.org/our-apis/) (CC BY-SA 4.0, optional).
 - **OSM coastline** — [OpenStreetMap land polygons](https://osmdata.openstreetmap.de/data/land-polygons.html) (ODbL), used to filter SAR land returns.
 - **YOLOv8 SAR vessel detector** — [`MeWan2808/yolov8n-sar-vessel-detection`](https://huggingface.co/MeWan2808/yolov8n-sar-vessel-detection) on Hugging Face.
 - Basemap tiles: [CARTO](https://carto.com/attributions) dark matter, © OpenStreetMap contributors.
