@@ -1,0 +1,10 @@
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: #0a0e17;
+  color: #e6e7eb;
+}
+* { box-sizing: border-box; }
+button { font: inherit; }
+@keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.4} }

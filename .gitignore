@@ -1,0 +1,26 @@
+node_modules
+dist
+.env
+.env.local
+*.log
+.DS_Store
+
+# heavy generated/downloaded artifacts — regenerate via s1-pipeline scripts
+public/tiles/s1/**
+!public/tiles/s1/manifest.json
+public/detections/*.json.raw
+
+# pipeline workspace
+s1-pipeline/.cache/
+s1-pipeline/.venv/
+s1-pipeline/__pycache__/
+s1-pipeline/models/
+
+# bulk inputs (downloaded by scripts in s1-pipeline/)
+s1-pipeline/data/ais/*.csv
+s1-pipeline/data/ais/*.zip
+s1-pipeline/data/ais/*.parquet
+s1-pipeline/data/coastline/*.zip
+s1-pipeline/data/coastline/land-polygons-complete-4326/
+s1-pipeline/data/coastline/simplified-land-polygons-complete-3857/
+s1-pipeline/data/coastline/ne_10m_*
