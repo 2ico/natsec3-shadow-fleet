@@ -8,7 +8,7 @@ Multi-INT fusion maritime webapp. Combines Sentinel-1 SAR ship detections (YOLO)
 *Anomaly view: SAR detections with no matching AIS ping are flagged red — candidate dark vessels.*
 
 ![Nominal traffic — every SAR detection matches an AIS report](docs/screenshot-nominal.jpg)
-*Nominal view: every SAR detection (amber bbox) pairs with an AIS report (cyan triangle) — no shadow fleet activity in scene.*
+*Nominal view: every SAR detection (amber bbox) pairs with an AIS report (green arrows) — no shadow fleet activity in scene.*
 
 ## What it does
 
